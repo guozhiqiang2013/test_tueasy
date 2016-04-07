@@ -1,0 +1,242 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project name="genwar" default="all" basedir=".">
+
+    <description> - Generate war file - </description>
+
+    <property environment="env" />
+
+    <property name="debuglevel" value="source,lines,vars" />
+    <property name="target" value="1.6" />
+    <property name="source" value="1.6" />
+
+    <property name="output.dir" location="." />
+    <property name="output.file" value="new_cos.war" />
+
+    <property name="project.build" location="./build" />
+    <property name="project.src" location="./src" />
+    <property name="project.web" location="../web" />
+    <property name="project.lib" location="./lib" />
+    <property name="project.res" location="./res" />
+    <property name="project.svc" location="./svc" />
+
+    <property name="project.war" location="${project.build}/${output.file}" />
+
+    <property name="tmp" location="${project.build}/tmp" />
+    <property name="tmp.src" location="${tmp}/src" />
+    <property name="tmp.lib" location="${project.web}/WEB-INF/lib" />
+    <property name="tmp.bin" location="${tmp}/bin" />
+    <property name="tmp.web" location="${tmp}/web" />
+    <property name="tmp.classes" location="${tmp}/classes" />
+
+    <property name="checkstyle.dir" location="./ant-task/checkstyle" />
+    <property name="findbugs.dir" location="./ant-task/findbugs/home" />
+    <property name="findbugs.report.dir" location="./ant-task/findbugs" />
+    <property name="junit.reports.dir" value="./ant-task/junit/reports" />
+    <property name="junit.class.dir" value="./ant-task/junit/bin" />
+    <property name="junit.test.src" location="./test/java" />
+    <property name="junit.test.resources" location="./test/resources" />
+
+    <path id="javaclass.path">
+        <pathelement path="${env.classpath}" />
+        <pathelement path="${env.JBOSS_HOME}/server/all/lib/servlet-api.jar" />
+        <pathelement path="${env.JBOSS_HOME}/server/all/lib/jsp-api.jar" />
+        <fileset dir="${tmp.lib}" includes="*.jar" />
+        <!-- <fileset dir="${project.lib}" includes="*.jar" /> -->
+    </path>
+
+    <path id="findbugs.path">
+        <fileset dir="${findbugs.dir}" includes="**/*.jar" />
+    </path>
+
+    <target name="clean">
+        <delete file="${output.dir}/${output.file}" failonerror="false" />
+        <delete dir="${project.build}" failonerror="false" />
+        <mkdir dir="${project.build}" />
+    </target>
+
+    <target name="all" depends="clean,buildwar" />
+
+    <target name="initdir">
+
+        <echo message="Init directories " />
+
+        <delete dir="${tmp}" failonerror="false" />
+
+        <mkdir dir="${tmp}" />
+
+        <mkdir dir="${tmp.src}" />
+        <copy todir="${tmp.src}">
+            <fileset dir="${project.src}" excludes="**/.svn/**" />
+        </copy>
+
+        <mkdir dir="${tmp.lib}" />
+        <!-- 
+        <copy todir="${tmp.lib}">
+            <fileset dir="${project.web}/WEB-INF/lib" includes="*.jar" />
+        </copy>
+        -->
+
+        <mkdir dir="${tmp.bin}" />
+
+        <mkdir dir="${tmp.web}/WEB-INF/lib" />
+
+        <delete dir="${tmp.web}/WEB-INF/classes" failonerror="false" />
+        <mkdir dir="${tmp.web}/WEB-INF/classes" />
+
+    </target>
+
+    <target name="compilejava" depends="initdir">
+        <echo message="Compiling java code " />
+
+        <javac debug="true" debuglevel="${debuglevel}" destdir="${tmp.bin}" source="${source}" target="${target}" encoding="UTF-8">
+            <src path="${tmp.src}" />
+            <classpath refid="javaclass.path" />
+        </javac>
+
+        <copy todir="${tmp.web}/WEB-INF/classes" includeemptydirs="false">
+            <fileset dir="${tmp.src}">
+                <exclude name="**/*.java" />
+            </fileset>
+        </copy>
+        <copy todir="${tmp.web}/WEB-INF/classes" includeemptydirs="false">
+            <fileset dir="${tmp.bin}">
+                <include name="**/*.class" />
+            </fileset>
+        </copy>
+    </target>
+
+    <target name="compilejava-without-copy" depends="initdir">
+        <echo message="Compiling java code " />
+
+        <javac debug="true" debuglevel="${debuglevel}" destdir="${tmp.bin}" source="${source}" target="${target}" encoding="UTF-8">
+            <src path="${tmp.src}" />
+            <classpath refid="javaclass.path" />
+        </javac>
+
+    </target>
+
+    <target name="buildwar" depends="compilejava">
+
+        <echo message="Packing war file " />
+
+        <copy todir="${tmp.web}">
+            <fileset dir="${project.web}" excludes="**/.svn/**" />
+        </copy>
+
+        <delete file="${project.war}" failonerror="false" />
+        <war destfile="${project.war}" basedir="${tmp.web}" webxml="${tmp.web}/WEB-INF/web.xml" encoding="utf-8" />
+        <delete dir="${tmp}" failonerror="false" />
+
+        <delete file="${output.dir}/${output.file}" failonerror="false" />
+        <move todir="${output.dir}" includeemptydirs="false" filtering="true">
+            <fileset dir="${project.build}">
+                <include name="**/*.war" />
+            </fileset>
+        </move>
+
+        <delete dir="${project.build}" failonerror="false" />
+
+    </target>
+
+    <taskdef resource="checkstyletask.properties"
+         classpath="${checkstyle.dir}/checkstyle-5.5-all.jar"/>
+
+    <target name="checkstyle" 
+        description="Generates a report of code convention violations.">
+
+        <checkstyle config="${checkstyle.dir}/my_check.xml"
+            failureProperty="checkstyle.failure" failOnViolation="false">
+            <formatter type="xml" tofile="${checkstyle.dir}/checkstyle_report.xml" />
+            <fileset dir="${project.src}" includes="**/*.java" />
+        </checkstyle>
+
+        <!-- style in="checkstyle_report.xml" out="checkstyle_report.html"
+            style="checkstyle.xsl" /-->
+
+    </target>
+
+    <taskdef name="findbugs" classname="edu.umd.cs.findbugs.anttask.FindBugsTask" 
+        classpathref ="findbugs.path"/>
+
+    <target name="findbugs" depends="compilejava-without-copy"
+        description="用Findbugs检查代码错误.">
+        <echo>开始用Findbugs检查代码错误</echo>
+        <findbugs home="${findbugs.dir}" output="xml"
+            outputFile="${findbugs.report.dir}/findbugs_report.xml" >
+            <auxClasspath >
+                <path refid="junit.test.lib.path" />
+            </auxClasspath>
+            <!--auxClasspath path="${basedir}/lib/Regex.jar" /-->
+            <sourcePath path="${tmp.src}" />
+            <class location="${tmp.bin}" />
+        </findbugs>
+        <echo>Findbugs检查代码错误完成</echo>
+
+        <delete dir="${project.build}" failonerror="false" />
+    </target>
+    
+    <target name="junit-init" >
+        <delete dir="${junit.class.dir}" failonerror="false" />
+        <mkdir dir="${junit.class.dir}" />
+        <delete dir="${junit.reports.dir}/result-xml" failonerror="false" />
+        <mkdir dir="${junit.reports.dir}/result-xml" />
+        <delete dir="${junit.reports.dir}/html" failonerror="false" />
+        <mkdir dir="${junit.reports.dir}/html" />
+        <delete dir="${junit.reports.dir}/html-result" failonerror="false" />
+        <mkdir dir="${junit.reports.dir}/html-result" />
+    </target>
+
+
+    <target name="junit-compile" depends="junit-init">
+        <echo message="${project.web}/WEB-INF/lib"/>
+        <javac srcdir="${project.src}" destdir="${junit.class.dir}" source="${source}" target="${target}" encoding="UTF-8">
+            <classpath refid="junit.test.lib.path" />
+        </javac>
+        <javac srcdir="${junit.test.src}" destdir="${junit.class.dir}" source="${source}" target="${target}" encoding="UTF-8">
+            <classpath refid="junit.test.lib.path" />
+        </javac>
+        <copy todir="${junit.class.dir}">
+            <fileset dir="${junit.test.resources}">
+                <include name="**/*.xml" />
+            </fileset>
+        </copy>
+        <copy todir="${junit.class.dir}">
+            <fileset dir="${project.src}">
+                <include name="**/*.xml" />
+            </fileset>
+        </copy>
+    </target>
+
+    <path id="junit.test.lib.path">
+        <pathelement path="${env.JBOSS_HOME}/server/all/lib/servlet-api.jar" />
+        <pathelement path="${env.JBOSS_HOME}/server/all/lib/jsp-api.jar" />
+        <pathelement path="${env.JBOSS_HOME}/server/all/lib/jboss-j2ee.jar" />
+        <fileset dir="${project.web}/WEB-INF/lib" includes="**/*.jar" />
+        <fileset dir="${project.lib}" includes="**/*.jar" />
+    </path>
+    
+
+    <target name="junit-test" depends="junit-compile">
+        <junit printsummary="yes">
+            <classpath>
+                <!-- 指定lib和class路径，class和jar的声明不能混在一起 -->
+                <pathelement location="${junit.class.dir}" />
+                <path refid="junit.test.lib.path" />
+            </classpath>
+            <batchtest todir="${junit.reports.dir}/result-xml">
+                <fileset dir="${junit.test.src}" includes="**/*TestCase.java" />
+                <formatter type="xml" />
+            </batchtest>
+        </junit>
+        <junitreport todir="${junit.reports.dir}/html-result">
+            <!-- 指定测试结果的XML，即上一步产生的XML -->
+            <fileset dir="${junit.reports.dir}/result-xml">
+                <include name="TEST-*.xml" />
+            </fileset>
+            <!-- 根据测试结果XML，生成TESTS-TestSuites.xml，并由此产生HTML文件 -->
+            <report format="frames" todir="${junit.reports.dir}/html" />
+            <!-- 
+            -->
+        </junitreport>
+    </target>
+</project>
